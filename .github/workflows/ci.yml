@@ -1,4 +1,3 @@
-
 name: React CI/CD Pipeline
 
 # This triggers the workflow on pushes and pull requests to the main branch
@@ -51,9 +50,6 @@ jobs:
       - name: Run Tests
         run: npm run test
 
-      #- name: Build the app
-      #  run: npm run build  # Builds the React app for production
-  # Job to deploy the application after build
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
@@ -84,9 +80,8 @@ jobs:
       - name: Checkout Cypress repo
         uses: actions/checkout@v4
         with:
-          # REEMPLAZA: Pon tu usuario/organización y el nombre del repositorio de Cypress
-          repository: 'alunai-lang/c15'
-          # REEMPLAZA: Crea un GitHub Personal Access Token (PAT) y guárdalo en Settings -> Secrets
+          # Actualizado para que apunte directamente a tu propio repositorio de Cypress
+          repository: 'kevinQuispeInga/cypress15'
           token: ${{ secrets.MI_GITHUB_TOKEN_REPOS }}
           path: 'cypress-tests' # Descarga las pruebas en esta subcarpeta
 
@@ -97,10 +92,10 @@ jobs:
           node-version: 18.x
 
       - name: Install Dependencies
-        run: npm install #' / 'yarn install' / 'pnpm install'
+        run: npm install
         working-directory: cypress-tests # 👈 This tells npm where to find package.json
 
-              # 💡 Añadimos este paso para asegurarnos en los logs de qué URL se está leyendo realmente
+      # 💡 Añadimos este paso para asegurarnos en los logs de qué URL se está leyendo realmente
       - name: Debug URL
         run: echo "La URL recibida de Vercel es ${{ needs.deploy.outputs.vercel_url }}"
           
@@ -115,11 +110,13 @@ jobs:
           component: false
           record: false
           publish-summary: true
+          # 🚀 OPTIMIZACIÓN: Evitamos que Cypress intente generar imágenes si hay lentitud en la VM
+          command: npx cypress run --config screenshotOnRunFailure=false
 
       - name: Subir Todos los Screenshots
         uses: actions/upload-artifact@v4
-        if: always() # 👈 CAMBIO: Se ejecuta siempre, pase o falle el pipeline
+        if: always() # 👈 Se ejecuta siempre, pase o falle el pipeline
         with:
           name: cypress-screenshots
           path: cypress-tests/cypress/screenshots/
-          if-no-files-found: warn # Te avisará si olvidaste poner cy.screenshot() en tus pruebas exitosas
+          if-no-files-found: warn
