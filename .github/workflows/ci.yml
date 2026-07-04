@@ -1,0 +1,125 @@
+
+name: React CI/CD Pipeline
+
+# This triggers the workflow on pushes and pull requests to the main branch
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest  # This specifies the OS for the job
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2  # Checks out the code from your repository
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2  # Sets up the Node.js environment
+        with:
+          node-version: '16'  # Specifies the version of Node.js
+
+      - name: Install dependencies
+        run: npm install  # Installs the required dependencies
+
+      - name: Build the app
+        run: npm run build  # Builds the React app for production
+
+  tests:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Use Node.js 18.x to run Test
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: 'npm'
+          
+      - name: Install Dependencies
+        run: npm ci
+        
+      - name: Run Tests
+        run: npm run test
+
+      #- name: Build the app
+      #  run: npm run build  # Builds the React app for production
+  # Job to deploy the application after build
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: tests  # Ensures the deploy job runs only after the build job completes successfully
+
+    outputs:
+      vercel_url: ${{ steps.deploy-vercel.outputs.DEPLOY_URL }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 #  Re-checks out the code for deployment
+
+      - name: Deploy to Vercel
+        id: deploy-vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        # 💡 Usamos --confirm y limpiamos la salida para extraer SOLO la URL limpia
+        run: |
+          URL=$(npx vercel --prod --yes --token $VERCEL_TOKEN | tail -n 1)
+          echo "DEPLOY_URL=$URL" >> $GITHUB_OUTPUT
+
+  cypress-e2e:
+    name: Cypress E2E Tests
+    runs-on: ubuntu-latest
+    needs: deploy  # Espera a que la app esté publicada en Vercel antes de probar
+
+    steps:
+      # 1. Descarga el repositorio donde tienes guardado Cypress
+      - name: Checkout Cypress repo
+        uses: actions/checkout@v4
+        with:
+          # REEMPLAZA: Pon tu usuario/organización y el nombre del repositorio de Cypress
+          repository: 'alunai-lang/c15'
+          # REEMPLAZA: Crea un GitHub Personal Access Token (PAT) y guárdalo en Settings -> Secrets
+          token: ${{ secrets.MI_GITHUB_TOKEN_REPOS }}
+          path: 'cypress-tests' # Descarga las pruebas en esta subcarpeta
+
+      # 2. Configura Node.js para las pruebas
+      - name: Set up Node.js for Cypress
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+
+      - name: Install Dependencies
+        run: npm install #' / 'yarn install' / 'pnpm install'
+        working-directory: cypress-tests # 👈 This tells npm where to find package.json
+
+              # 💡 Añadimos este paso para asegurarnos en los logs de qué URL se está leyendo realmente
+      - name: Debug URL
+        run: echo "La URL recibida de Vercel es ${{ needs.deploy.outputs.vercel_url }}"
+          
+      - name: Run Cypress Tests
+        uses: cypress-io/github-action@v6
+        # 💡 Pasamos la URL como variable de entorno nativa de Cypress
+        env:
+          CYPRESS_BASE_URL: ${{ needs.deploy.outputs.vercel_url }}
+        with:
+          working-directory: cypress-tests
+          install: false
+          component: false
+          record: false
+          publish-summary: true
+
+      - name: Subir Todos los Screenshots
+        uses: actions/upload-artifact@v4
+        if: always() # 👈 CAMBIO: Se ejecuta siempre, pase o falle el pipeline
+        with:
+          name: cypress-screenshots
+          path: cypress-tests/cypress/screenshots/
+          if-no-files-found: warn # Te avisará si olvidaste poner cy.screenshot() en tus pruebas exitosas
