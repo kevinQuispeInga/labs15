@@ -13,7 +13,8 @@ const distribuidores = [
   { id: 'Ropa', displayName: 'Ropa' },
   { id: 'Laptops ', displayName: 'Laptop' }, 
   { id: 'Smartphones ', displayName: 'Smartphone' },
-  { id: 'Smart TVs', displayName: 'Smart TV' }
+  { id: 'Smart TVs', displayName: 'Smart TV' },
+  { id: 'Computadoras', displayName: 'Computadora' }
 ];
 
 function App() {
